@@ -3,15 +3,19 @@
 Preprocess the Union Scene Facebook feed for Smartly.
 
 - Fetches the source CSV
-- Explodes multi-category rows into one row per (event x category)
+- Explodes multi-category rows into one (event x category) pair per category
 - Counts events per category
-- Writes ad_set_status = ACTIVE / PAUSED based on MIN_EVENTS threshold
+- Writes ONE summary row where each column is a category name and the
+  value is Active / Paused based on MIN_EVENTS threshold
 
-Output is written to output/facebook_smartly.csv (Smartly-ready).
+Output is written to output/facebook_smartly.csv (Smartly-ready):
+
+  Popglade,Rock,Viser,...
+  Active,Paused,Active,...
 
 Config via environment variables:
   SOURCE_URL   source CSV url (has a sensible default)
-  MIN_EVENTS   threshold for ACTIVE (default: 3)
+  MIN_EVENTS   threshold for Active (default: 3)
   OUTPUT_PATH  where to write the processed feed
 """
 
@@ -82,48 +86,38 @@ def main() -> int:
         print("ERROR: source feed has no data rows.", file=sys.stderr)
         return 1
 
-    # Pass 1: explode into (row, category) pairs and count per category
-    exploded = []  # list of (original_row_dict, category)
+    # Count events per category
     counts = Counter()
     for row in rows:
-        cats = parse_categories(row.get(CATEGORY_COL, ""))
-        for cat in cats:
-            exploded.append((row, cat))
+        for cat in parse_categories(row.get(CATEGORY_COL, "")):
             counts[cat] += 1
 
-    if not exploded:
+    if not counts:
         print("ERROR: no categories found after parsing.", file=sys.stderr)
         return 1
 
-    # Pass 2: write output with per-category count + status
-    src_fields = reader.fieldnames
-    out_fields = src_fields + ["Kategori", "event_count_in_category", "ad_set_status"]
+    # One column per category, sorted for a stable header order across runs
+    categories = sorted(counts, key=lambda c: c.casefold())
+    status = {
+        cat: ("Active" if counts[cat] >= MIN_EVENTS else "Paused") for cat in categories
+    }
 
     os.makedirs(os.path.dirname(OUTPUT_PATH) or ".", exist_ok=True)
     with open(OUTPUT_PATH, "w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=out_fields, quoting=csv.QUOTE_MINIMAL)
+        writer = csv.DictWriter(f, fieldnames=categories, quoting=csv.QUOTE_MINIMAL)
         writer.writeheader()
-        for row, cat in exploded:
-            count = counts[cat]
-            status = "ACTIVE" if count >= MIN_EVENTS else "PAUSED"
-            out_row = dict(row)
-            out_row["Kategori"] = cat
-            out_row["event_count_in_category"] = count
-            out_row["ad_set_status"] = status
-            writer.writerow(out_row)
+        writer.writerow(status)
 
     # Summary to stdout (visible in Actions logs)
-    active = sum(1 for c in counts.values() if c >= MIN_EVENTS)
-    paused = len(counts) - active
+    active = sum(1 for s in status.values() if s == "Active")
+    paused = len(status) - active
     print(f"Source rows:        {len(rows)}")
-    print(f"Exploded rows:      {len(exploded)}")
-    print(f"Categories:         {len(counts)} ({active} ACTIVE / {paused} PAUSED)")
+    print(f"Categories:         {len(counts)} ({active} Active / {paused} Paused)")
     print(f"Threshold MIN_EVENTS={MIN_EVENTS}")
     print(f"Output:             {OUTPUT_PATH}")
     print("\nPer-category counts:")
-    for cat, count in sorted(counts.items(), key=lambda x: (-x[1], x[0])):
-        flag = "ACTIVE" if count >= MIN_EVENTS else "PAUSED"
-        print(f"  {count:>3}  {flag:<7} {cat}")
+    for cat in sorted(counts, key=lambda c: (-counts[c], c.casefold())):
+        print(f"  {counts[cat]:>3}  {status[cat]:<7} {cat}")
 
     return 0
 

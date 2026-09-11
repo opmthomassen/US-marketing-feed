@@ -1,4 +1,4 @@
-# Smartly feed preprocessor — Drammens Teater
+# Smartly feed preprocessor — Union Scene
 
 Regenererer Facebook/Smartly-feeden hver time slik at hvert annonsesett
 (kategori) automatisk kan **pauses eller aktiveres** basert på antall
@@ -6,15 +6,20 @@ kommende arrangement i kategorien.
 
 ## Hva skriptet gjør
 
-1. Henter kilde-CSV fra Drammens Teater.
-2. **Eksploderer** rader med flere kategorier til én rad per
-   `(arrangement × kategori)`. Slik blir hver kategori en gruppe Smartly kan
-   telle og lage carousel over.
-3. Teller antall arrangement per kategori.
-4. Legger til tre kolonner:
-   - `Kategori` — enkeltkategorien for raden (bruk denne til å splitte annonsesett)
-   - `event_count_in_category` — antall arrangement i kategorien
-   - `ad_set_status` — `ACTIVE` hvis antallet ≥ terskel, ellers `PAUSED`
+1. Henter kilde-CSV fra Union Scene.
+2. Leser kategori-listen for hvert arrangement og teller antall arrangement
+   per kategori.
+3. Skriver **én oppsummeringsrad** der hver kolonne er navnet på en
+   kategori (f.eks. `Popglade`), og verdien er:
+   - `Active` hvis kategorien har ≥ terskel arrangement
+   - `Paused` hvis den har færre
+
+Eksempel på output:
+
+```
+Popglade,Rock,Viser
+Active,Paused,Active
+```
 
 Resultatet skrives til `output/facebook_smartly.csv`.
 
@@ -27,8 +32,11 @@ https://raw.githubusercontent.com/<BRUKER>/<REPO>/main/output/facebook_smartly.c
 ```
 
 I Smartly:
-- Splitt annonsesett på feltet **`Kategori`** (ikke `Kategorier`).
-- Sett **Ad set → Status → From feed** og velg **`ad_set_status`**.
+- For hvert annonsesett (kategori), sett **Ad set → Status → From feed** og
+  pek på kolonnen med samme navn som kategorien (f.eks. `Popglade`).
+- Kolonnenavnene er sortert alfabetisk og hentes automatisk fra kildefeeden,
+  så nye kategorier dukker opp som nye kolonner neste gang de finnes i
+  kilden.
 
 > Vil du ha en penere/stabil URL kan du i stedet slå på GitHub Pages og
 > servere fra `output/` — se nederst.
@@ -44,7 +52,7 @@ I Smartly:
 
 ## Justere terskelen
 
-Terskelen er `MIN_EVENTS` (default `3`). Endre den i
+Terskelen for `Active` er `MIN_EVENTS` (default `3`). Endre den i
 `.github/workflows/update-feed.yml`:
 
 ```yaml
