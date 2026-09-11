@@ -20,7 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       MIN_EVENTS: "3"
-      SOURCE_URL: "https://drammensteater.no/wp-content/uploads/ambio-marketing/csv/facebook.csv"
+      SOURCE_URL: "https://unionscene.no/wp-content/uploads/ambio-marketing/csv/facebook.csv"
       OUTPUT_PATH: "output/facebook_smartly.csv"
     steps:
       - name: Checkout
